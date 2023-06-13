@@ -2,22 +2,21 @@ import csv
 
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
-from django_filters.rest_framework import filters
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from django_filters.rest_framework import DjangoFilterBackend
 
 from recipes.models import (FavoriteList, Follow, Ingredient, IngredientAmaunt,
                             Recipe, ShoppingIngredientList, Tag, User)
 
+from .filters import RecipeFilter
 from .permissions import AdminModeratorAuthorPermission
 from .serializers import (CustomUserSerializer, FollowReadSerializer,
                           IngredientSerializer, RecipeReadSerializer,
                           RecipeSerializer, RecipeWriteSerializer,
                           TagSerializer)
-from .filters import RecipeFilter
 
 
 class CustomUserViewSet(viewsets.ModelViewSet):
@@ -74,9 +73,10 @@ class CustomUserViewSet(viewsets.ModelViewSet):
 
     @action(methods=['GET'], detail=False, url_path='subscriptions')
     def subscriptions(self, request):
-        print('ty')
         user = request.user
-        following = user.following.all()
+        following = User.objects.filter(
+            id__in=user.follower.all().values_list('author'))
+
         recipes_limit = request.query_params.get('recipes_limit', 10)
         return Response(FollowReadSerializer(
             following,
@@ -107,7 +107,6 @@ class RecipeViewSet(viewsets.ModelViewSet):
     permission_classes = (AdminModeratorAuthorPermission,)
     http_method_names = ['get', 'post', 'patch', 'delete']
     filter_backends = (DjangoFilterBackend,)
-    # filterset_fields = ('tags__recipe_tag__tag',)
     filterset_class = RecipeFilter
 
     def get_serializer_class(self):

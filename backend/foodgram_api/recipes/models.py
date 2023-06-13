@@ -178,12 +178,16 @@ class Recipe(models.Model):
 
     ingredients = models.ManyToManyField(
         IngredientAmaunt,
-        through='RecipeIngredient'
+        through='RecipeIngredient',
+        null=False,
+        blank=False
     )
 
     tags = models.ManyToManyField(
         Tag,
-        through='RecipeTag'
+        through='RecipeTag',
+        null=False,
+        blank=False
     )
 
     def __str__(self):
@@ -218,7 +222,8 @@ class RecipeIngredient(models.Model):
 class FavoriteList(models.Model):
     user = models.ForeignKey(
         User,
-        on_delete=models.CASCADE
+        on_delete=models.CASCADE,
+        related_name='favorite_recipes'
     )
 
     recipe = models.ForeignKey(

@@ -145,8 +145,25 @@ class RecipeWriteSerializer(serializers.ModelSerializer):
         return recipe
 
     def update(self, instance, validated_data):
-        instance.delete()
-        return self.create(validated_data)
+        tags = validated_data.pop('tags')
+        ingredients = validated_data.pop('ingredients')
+        RecipeTag.objects.filter(recipe=instance).delete()
+
+        for tag in tags:
+            RecipeTag.objects.create(recipe=instance, tag=tag)
+
+        RecipeIngredient.objects.filter(recipe=instance).delete()
+        for ingredient in ingredients:
+            RecipeIngredient.objects.create(
+                ingredient=ingredient, recipe=instance)
+
+        instance.image = validated_data.pop('image', instance.image)
+        instance.text = validated_data.pop('text', instance.text)
+        instance.name = validated_data.pop('text', instance.name)
+        instance.cooking_time = validated_data.pop(
+            'text', instance.cooking_time)
+        instance.save()
+        return instance
 
     def get_is_in_favorite(self, obj):
         user = self.context.get('request').user
