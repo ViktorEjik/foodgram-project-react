@@ -1,8 +1,8 @@
 from django.contrib import admin
 
-from .models import (FavoriteList, Follow, Ingredient, Recipe,
-                     RecipeIngredient, RecipeTag, ShoppingIngredientList, Tag,
-                     User)
+from .models import (FavoriteList, Follow, Ingredient, IngredientAmaunt,
+                     Recipe, RecipeIngredient, RecipeTag,
+                     ShoppingIngredientList, ShoppingRecipeList, Tag, User)
 
 
 @admin.register(User)
@@ -51,3 +51,13 @@ class FavoriteListAdmin(admin.ModelAdmin):
 @admin.register(ShoppingIngredientList)
 class FavoriteListAdmin(admin.ModelAdmin):
     list_display = ('id', 'user', 'ingredient', 'amount')
+
+
+@admin.register(ShoppingRecipeList)
+class ShoppingRecipeListAdmin(admin.ModelAdmin):
+    list_display = ('id', 'user', 'recipe')
+
+
+@admin.register(IngredientAmaunt)
+class IngredientAmauntAdmin(admin.ModelAdmin):
+    list_display = ('id', 'ingredient', 'amount')

@@ -1,6 +1,6 @@
 from django_filters import rest_framework as filters
 
-from recipes.models import FavoriteList, Recipe, ShoppingRecipeList, Tag, User
+from recipes.models import Recipe, Tag, User
 
 
 class RecipeFilter(filters.FilterSet):
@@ -33,14 +33,12 @@ class RecipeFilter(filters.FilterSet):
         if not (user.is_authenticated and value):
             return queryset
 
-        favorite_list = FavoriteList.objects.filter(user=user)
-        return Recipe.objects.filter(
-            id__in=favorite_list.values_list('recipe'))
+        favorite_list = Recipe.objects.filter(favoritelist__user=user)
+        return favorite_list
 
     def get_is_in_shopping_cart(self, queryset, name, value):
         user = self.request.user
         if not (user.is_authenticated and value):
             return queryset
-        shopping_list = ShoppingRecipeList.objects.filter(user=user)
-        return Recipe.objects.filter(
-            id__in=shopping_list.values_list('recipe'))
+        shopping_list = Recipe.objects.filter(shopping_recipe_list__user=user)
+        return shopping_list

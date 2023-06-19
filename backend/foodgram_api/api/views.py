@@ -1,15 +1,17 @@
 import csv
 
+from django.db import transaction
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
+from rest_framework.filters import SearchFilter
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from recipes.models import (FavoriteList, Follow, Ingredient, IngredientAmaunt,
-                            Recipe, ShoppingIngredientList, Tag, User)
+from recipes.models import (FavoriteList, Follow, Ingredient, Recipe,
+                            ShoppingIngredientList, Tag, User)
 
 from .filters import RecipeFilter
 from .permissions import AdminModeratorAuthorPermission
@@ -23,8 +25,9 @@ class CustomUserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = CustomUserSerializer
     permission_classes = (IsAuthenticated,)
-    # http_method_names = ['get', 'post', 'delete']
+    http_method_names = ['get', 'post', 'delete']
 
+    @transaction.atomic
     def following(self, request, pk):
         user = request.user
         following = get_object_or_404(User, id=pk)
@@ -49,6 +52,7 @@ class CustomUserViewSet(viewsets.ModelViewSet):
             status=status.HTTP_200_OK,
         )
 
+    @transaction.atomic
     def unfollow(self, request, pk):
         user = request.user
         following = get_object_or_404(User, id=pk)
@@ -74,8 +78,7 @@ class CustomUserViewSet(viewsets.ModelViewSet):
     @action(methods=['GET'], detail=False, url_path='subscriptions')
     def subscriptions(self, request):
         user = request.user
-        following = User.objects.filter(
-            id__in=user.follower.all().values_list('author'))
+        following = User.objects.filter(following__user=user)
 
         recipes_limit = request.query_params.get('recipes_limit', 10)
         return Response(FollowReadSerializer(
@@ -98,8 +101,8 @@ class IngredientViewSet(viewsets.ModelViewSet):
     queryset = Ingredient.objects.all()
     http_method_names = ['get', ]
     serializer_class = IngredientSerializer
-    filter_backends = (DjangoFilterBackend,)
-    filterset_fields = ('name',)
+    search_fields = ('^name',)
+    filter_backends = (SearchFilter,)
 
 
 class RecipeViewSet(viewsets.ModelViewSet):
@@ -114,6 +117,7 @@ class RecipeViewSet(viewsets.ModelViewSet):
             return RecipeReadSerializer
         return RecipeWriteSerializer
 
+    @transaction.atomic
     def delet_favorite(self, request, pk):
         user = request.user
         recipe = get_object_or_404(Recipe, id=pk)
@@ -129,6 +133,7 @@ class RecipeViewSet(viewsets.ModelViewSet):
             status=status.HTTP_400_BAD_REQUEST
         )
 
+    @transaction.atomic
     def create_favorite(self, request, pk):
         user = request.user
         recipe = get_object_or_404(Recipe, id=pk)
@@ -144,6 +149,7 @@ class RecipeViewSet(viewsets.ModelViewSet):
         serializer = RecipeSerializer(favorite.recipe)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
+    @transaction.atomic
     def add_shopping_list(self, request, pk):
         user = request.user
         recipe = get_object_or_404(Recipe, id=pk)
@@ -157,7 +163,7 @@ class RecipeViewSet(viewsets.ModelViewSet):
 
         ingredients = recipe.ingredients.all()
         shoping_ingredient_list = user.shoping_ingredient_list.all()
-
+        # Я не понимаю как тут использовать agregate
         for ingredient in ingredients:
             if shoping_ingredient_list.filter(
                 ingredient=ingredient.ingredient
@@ -176,6 +182,7 @@ class RecipeViewSet(viewsets.ModelViewSet):
                 )
         return Response(RecipeSerializer(recipe).data)
 
+    @transaction.atomic
     def delete_shopping_list(self, request, pk):
         user = request.user
         recipe = get_object_or_404(Recipe, id=pk)
@@ -225,7 +232,7 @@ class RecipeViewSet(viewsets.ModelViewSet):
             writer.writerow([
                 ingredient.ingredient.name,
                 ingredient.amount,
-                ingredient.ingredient.measurement_unit
+                ingredient.ingredient.measurement_unit,
             ])
 
         return response
@@ -234,35 +241,10 @@ class RecipeViewSet(viewsets.ModelViewSet):
     def shopping_list(self, request, pk=None):
         if request.method == 'POST':
             return self.add_shopping_list(request, pk)
-        else:
-            return self.delete_shopping_list(request, pk)
+        return self.delete_shopping_list(request, pk)
 
     def perform_create(self, serializer):
-        tags = serializer.initial_data.get('tags')
-        taglist = list()
-        for tag in tags:
-            current_tag = get_object_or_404(Tag, pk=tag)
-            taglist.append(current_tag)
 
-        ingredients = serializer.initial_data.pop('ingredients')
-        ingredientslist = list()
-        for tupl in ingredients:
-            ingredient_id = tupl.get('id')
-            amount = tupl.get('amount')
-            current_ingredient = get_object_or_404(
-                Ingredient,
-                pk=ingredient_id
-            )
-
-            ingredient_amaunt = IngredientAmaunt.objects.create(
-                ingredient=current_ingredient,
-                amount=amount,
-            )
-            ingredientslist.append(ingredient_amaunt)
         serializer.save(
-            author=self.request.user, tags=taglist,
-            ingredients=ingredientslist
+            author=self.request.user
         )
-
-    def perform_update(self, serializer):
-        self.perform_create(serializer)

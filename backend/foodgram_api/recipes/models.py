@@ -2,42 +2,35 @@ from django.contrib.auth.models import AbstractUser
 from django.core.validators import MinValueValidator
 from django.db import models
 
-USER = 'user'
-ADMIN = 'admin'
-MODERATOR = 'moderator'
-
-ROLE_CHOICES = [
-    (USER, USER),
-    (ADMIN, ADMIN),
-    (MODERATOR, MODERATOR),
-]
-
 
 class User(AbstractUser):
+
+    USER = 'user'
+    ADMIN = 'admin'
+    MODERATOR = 'moderator'
+
+    ROLE_CHOICES = [
+        (USER, USER),
+        (ADMIN, ADMIN),
+        (MODERATOR, MODERATOR),
+    ]
+
     username = models.CharField(
         max_length=150,
         unique=True,
-        blank=False,
-        null=False
     )
 
     email = models.EmailField(
         max_length=254,
         unique=True,
-        blank=False,
-        null=False
     )
 
     first_name = models.CharField(
         max_length=150,
-        blank=False,
-        null=False
     )
 
     last_name = models.CharField(
         max_length=150,
-        blank=False,
-        null=False
     )
 
     role = models.CharField(
@@ -48,22 +41,22 @@ class User(AbstractUser):
         blank=True
     )
 
-    @property
-    def is_user(self):
-        return self.role == USER
-
-    @property
-    def is_admin(self):
-        return self.role == ADMIN
-
-    @property
-    def is_moderator(self):
-        return self.role == MODERATOR
-
     class Meta:
         ordering = ('id',)
         verbose_name = 'Пользователь'
         verbose_name_plural = 'Пользователи'
+
+    @property
+    def is_user(self):
+        return self.role == self.USER
+
+    @property
+    def is_admin(self):
+        return self.role == self.ADMIN
+
+    @property
+    def is_moderator(self):
+        return self.role == self.MODERATOR
 
     def __str__(self):
         return self.username
@@ -95,38 +88,28 @@ class Follow(models.Model):
 class Tag(models.Model):
     name = models.CharField(
         max_length=150,
-        blank=False,
-        null=False,
         unique=True
     )
 
     slug = models.SlugField(
         unique=True,
-        blank=False,
-        null=False
     )
 
     colore = models.CharField(
         max_length=7,
-        blank=False,
-        null=False
     )
 
-    def __str__(self) -> str:
+    def __str__(self):
         return f'{self.name} - {self.slug}'
 
 
 class Ingredient(models.Model):
     name = models.CharField(
         max_length=100,
-        blank=False,
-        null=False,
     )
 
     measurement_unit = models.CharField(
         max_length=100,
-        blank=False,
-        null=False
     )
 
     def __str__(self):
@@ -140,7 +123,8 @@ class IngredientAmaunt(models.Model):
         related_name='ingredients'
     )
     amount = models.IntegerField(
-        validators=(MinValueValidator(1),)
+        validators=(MinValueValidator(
+            1, 'В рецепте должна быть хотябы одна еденица продукта!'),)
     )
 
     def __str__(self):
@@ -157,36 +141,28 @@ class Recipe(models.Model):
 
     name = models.CharField(
         max_length=200,
-        blank=False,
-        null=False
     )
 
-    text = models.TextField(
-        blank=False,
-        null=False
-    )
+    text = models.TextField()
 
     cooking_time = models.IntegerField(
-        validators=(MinValueValidator(1),)
+        validators=(MinValueValidator(
+            1, 'Минимальное время готовки 1 минута!'),)
     )
 
     image = models.ImageField(
         upload_to='images',
-        blank=False,
-        null=False,
     )
 
     ingredients = models.ManyToManyField(
         IngredientAmaunt,
         through='RecipeIngredient',
-        null=False,
         blank=False
     )
 
     tags = models.ManyToManyField(
         Tag,
         through='RecipeTag',
-        null=False,
         blank=False
     )
 
@@ -223,7 +199,7 @@ class FavoriteList(models.Model):
     user = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
-        related_name='favorite_recipes'
+        related_name='favorite'
     )
 
     recipe = models.ForeignKey(
@@ -237,7 +213,7 @@ class ShoppingIngredientList(models.Model):
     user = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
-        related_name='shoping_ingredient_list'
+        related_name='shopping_ingredient_list'
     )
 
     ingredient = models.ForeignKey(
@@ -247,7 +223,7 @@ class ShoppingIngredientList(models.Model):
     amount = models.IntegerField()
 
     def __str__(self):
-        return self.ingredient
+        return f'{self.ingredient}'
 
 
 class ShoppingRecipeList(models.Model):

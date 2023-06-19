@@ -1,6 +1,8 @@
 import base64
 
 from django.core.files.base import ContentFile
+from django.db import transaction
+from django.shortcuts import get_object_or_404
 from djoser.serializers import UserCreateSerializer, UserSerializer
 from rest_framework import serializers
 
@@ -74,13 +76,9 @@ class IngredientAmountSerializer(serializers.ModelSerializer):
 class RecipeReadSerializer(serializers.ModelSerializer):
 
     tags = TagSerializer(many=True, read_only=True)
-
     author = UserSerializer(read_only=True)
-
     ingredients = IngredientAmountSerializer(many=True, read_only=True)
-
     is_in_favorite = serializers.SerializerMethodField()
-
     is_in_shopping_cart = serializers.SerializerMethodField()
 
     class Meta:
@@ -130,40 +128,88 @@ class RecipeWriteSerializer(serializers.ModelSerializer):
                   'cooking_time', 'image',
                   'is_in_favorite', 'is_in_shopping_cart']
 
+    @transaction.atomic
     def create(self, validated_data):
-        tags = validated_data.pop('tags')
-        ingredients = validated_data.pop('ingredients')
+
+        tags = self.initial_data.get('tags')
+        taglist = list()
+        for tag in tags:
+            current_tag = get_object_or_404(Tag, pk=tag)
+            taglist.append(current_tag)
+
+        ingredients = self.initial_data.get('ingredients')
+        ingredientslist = list()
+        for tupl in ingredients:
+            ingredient_id = tupl.get('id')
+            amount = tupl.get('amount')
+            current_ingredient = get_object_or_404(
+                Ingredient,
+                pk=ingredient_id
+            )
+
+            ingredient_amaunt = IngredientAmaunt.objects.create(
+                ingredient=current_ingredient,
+                amount=amount,
+            )
+            ingredientslist.append(ingredient_amaunt)
 
         recipe = Recipe.objects.create(**validated_data)
-        for tag in tags:
-            RecipeTag.objects.create(recipe=recipe, tag=tag)
 
-        for ingredient in ingredients:
-            RecipeIngredient.objects.create(
-                ingredient=ingredient, recipe=recipe)
+        recipe_tags = list()
+        for tag in taglist:
+            recipe_tags.append(RecipeTag(recipe=recipe, tag=tag))
+
+        RecipeTag.objects.bulk_create(recipe_tags)
+
+        recipe_ingredients = list()
+        for ingredient in ingredientslist:
+            recipe_ingredients.append(RecipeIngredient(
+                ingredient=ingredient, recipe=recipe))
+
+        RecipeIngredient.objects.bulk_create(recipe_ingredients)
 
         return recipe
 
+    @transaction.atomic
     def update(self, instance, validated_data):
-        tags = validated_data.pop('tags')
-        ingredients = validated_data.pop('ingredients')
+        tags = self.initial_data.get('tags')
+        taglist = list()
+        for tag in tags:
+            current_tag = get_object_or_404(Tag, pk=tag)
+            taglist.append(current_tag)
+
+        ingredients = self.initial_data.get('ingredients')
+        ingredientslist = list()
+        for tupl in ingredients:
+            ingredient_id = tupl.get('id')
+            amount = tupl.get('amount')
+            current_ingredient = get_object_or_404(
+                Ingredient,
+                pk=ingredient_id
+            )
+
+            ingredient_amaunt = IngredientAmaunt.objects.create(
+                ingredient=current_ingredient,
+                amount=amount,
+            )
+            ingredientslist.append(ingredient_amaunt)
+
         RecipeTag.objects.filter(recipe=instance).delete()
 
-        for tag in tags:
-            RecipeTag.objects.create(recipe=instance, tag=tag)
+        recipe_tags = list()
+        for tag in taglist:
+            recipe_tags.append(RecipeTag(recipe=instance, tag=tag))
+
+        RecipeTag.objects.bulk_create(recipe_tags)
 
         RecipeIngredient.objects.filter(recipe=instance).delete()
-        for ingredient in ingredients:
-            RecipeIngredient.objects.create(
-                ingredient=ingredient, recipe=instance)
+        recipe_ingredients = list()
+        for ingredient in ingredientslist:
+            recipe_ingredients.append(RecipeIngredient(
+                ingredient=ingredient, recipe=instance))
+        RecipeIngredient.objects.bulk_create(recipe_ingredients)
 
-        instance.image = validated_data.pop('image', instance.image)
-        instance.text = validated_data.pop('text', instance.text)
-        instance.name = validated_data.pop('text', instance.name)
-        instance.cooking_time = validated_data.pop(
-            'text', instance.cooking_time)
-        instance.save()
-        return instance
+        return super().update(instance=instance, validated_data=validated_data)
 
     def get_is_in_favorite(self, obj):
         user = self.context.get('request').user
