@@ -116,7 +116,7 @@ class Ingredient(models.Model):
         return self.name
 
 
-class IngredientAmaunt(models.Model):
+class IngredientAmount(models.Model):
     ingredient = models.ForeignKey(
         Ingredient,
         on_delete=models.CASCADE,
@@ -155,9 +155,10 @@ class Recipe(models.Model):
     )
 
     ingredients = models.ManyToManyField(
-        IngredientAmaunt,
+        IngredientAmount,
         through='RecipeIngredient',
-        blank=False
+        blank=False,
+        related_name='recipe_ingredient',
     )
 
     tags = models.ManyToManyField(
@@ -190,7 +191,7 @@ class RecipeIngredient(models.Model):
         on_delete=models.CASCADE
     )
     ingredient = models.ForeignKey(
-        IngredientAmaunt,
+        IngredientAmount,
         on_delete=models.CASCADE
     )
 
@@ -209,32 +210,15 @@ class FavoriteList(models.Model):
     )
 
 
-class ShoppingIngredientList(models.Model):
+class ShoppingList(models.Model):
     user = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
-        related_name='shopping_ingredient_list'
-    )
-
-    ingredient = models.ForeignKey(
-        Ingredient,
-        on_delete=models.CASCADE
-    )
-    amount = models.IntegerField()
-
-    def __str__(self):
-        return f'{self.ingredient}'
-
-
-class ShoppingRecipeList(models.Model):
-    user = models.ForeignKey(
-        User,
-        on_delete=models.CASCADE,
-        related_name='shopping_recipe_list'
+        related_name='shopping_list'
     )
 
     recipe = models.ForeignKey(
         Recipe,
         on_delete=models.CASCADE,
-        related_name='shopping_recipe_list'
+        related_name='shopping_list'
     )

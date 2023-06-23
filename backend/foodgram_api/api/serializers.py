@@ -6,9 +6,9 @@ from django.shortcuts import get_object_or_404
 from djoser.serializers import UserCreateSerializer, UserSerializer
 from rest_framework import serializers
 
-from recipes.models import (FavoriteList, Ingredient, IngredientAmaunt, Recipe,
-                            RecipeIngredient, RecipeTag, ShoppingRecipeList,
-                            Tag, User)
+from recipes.models import (FavoriteList, Ingredient, IngredientAmount, Recipe,
+                            RecipeIngredient, RecipeTag, ShoppingList, Tag,
+                            User)
 
 
 class Base64ImageField(serializers.ImageField):
@@ -69,7 +69,7 @@ class IngredientAmountSerializer(serializers.ModelSerializer):
     ingredient = IngredientSerializer()
 
     class Meta:
-        model = IngredientAmaunt
+        model = IngredientAmount
         fields = ('ingredient', 'amount')
 
 
@@ -98,7 +98,7 @@ class RecipeReadSerializer(serializers.ModelSerializer):
         user = self.context.get('request').user
         if not user.is_authenticated:
             return False
-        return ShoppingRecipeList.objects.filter(
+        return ShoppingList.objects.filter(
             user=user, recipe=obj).exists()
 
 
@@ -126,11 +126,9 @@ class RecipeWriteSerializer(serializers.ModelSerializer):
         fields = ['id', 'tags', 'ingredients',
                   'name', 'author', 'text',
                   'cooking_time', 'image',
-                  'is_in_favorite', 'is_in_shopping_cart']
+                  'is_in_favorited', 'is_in_shopping_cart']
 
-    @transaction.atomic
-    def create(self, validated_data):
-
+    def get_ingredients_tags(self):
         tags = self.initial_data.get('tags')
         taglist = list()
         for tag in tags:
@@ -147,11 +145,17 @@ class RecipeWriteSerializer(serializers.ModelSerializer):
                 pk=ingredient_id
             )
 
-            ingredient_amaunt = IngredientAmaunt.objects.create(
+            ingredient_amaunt = IngredientAmount.objects.create(
                 ingredient=current_ingredient,
                 amount=amount,
             )
             ingredientslist.append(ingredient_amaunt)
+        return taglist, ingredientslist
+
+    @transaction.atomic
+    def create(self, validated_data):
+
+        taglist, ingredientslist = self.get_ingredients_tags()
 
         recipe = Recipe.objects.create(**validated_data)
 
@@ -172,27 +176,7 @@ class RecipeWriteSerializer(serializers.ModelSerializer):
 
     @transaction.atomic
     def update(self, instance, validated_data):
-        tags = self.initial_data.get('tags')
-        taglist = list()
-        for tag in tags:
-            current_tag = get_object_or_404(Tag, pk=tag)
-            taglist.append(current_tag)
-
-        ingredients = self.initial_data.get('ingredients')
-        ingredientslist = list()
-        for tupl in ingredients:
-            ingredient_id = tupl.get('id')
-            amount = tupl.get('amount')
-            current_ingredient = get_object_or_404(
-                Ingredient,
-                pk=ingredient_id
-            )
-
-            ingredient_amaunt = IngredientAmaunt.objects.create(
-                ingredient=current_ingredient,
-                amount=amount,
-            )
-            ingredientslist.append(ingredient_amaunt)
+        taglist, ingredientslist = self.get_ingredients_tags()
 
         RecipeTag.objects.filter(recipe=instance).delete()
 
@@ -217,7 +201,7 @@ class RecipeWriteSerializer(serializers.ModelSerializer):
 
     def get_is_in_shopping_cart(self, obj):
         user = self.context.get('request').user
-        return ShoppingRecipeList.objects.filter(
+        return ShoppingList.objects.filter(
             user=user, recipe=obj).exists()
 
 

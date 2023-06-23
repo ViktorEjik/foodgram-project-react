@@ -1,17 +1,17 @@
 import csv
 
 from django.db import transaction
+from django.db.models import Sum
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view
 from rest_framework.filters import SearchFilter
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from recipes.models import (FavoriteList, Follow, Ingredient, Recipe,
-                            ShoppingIngredientList, Tag, User)
+from recipes.models import FavoriteList, Follow, Ingredient, Recipe, Tag, User
 
 from .filters import RecipeFilter
 from .permissions import AdminModeratorAuthorPermission
@@ -21,11 +21,10 @@ from .serializers import (CustomUserSerializer, FollowReadSerializer,
                           TagSerializer)
 
 
-class CustomUserViewSet(viewsets.ModelViewSet):
+class CustomUserViewSet(viewsets.GenericViewSet):
     queryset = User.objects.all()
     serializer_class = CustomUserSerializer
     permission_classes = (IsAuthenticated,)
-    http_method_names = ['get', 'post', 'delete']
 
     @transaction.atomic
     def following(self, request, pk):
@@ -74,21 +73,6 @@ class CustomUserViewSet(viewsets.ModelViewSet):
         if request.method == 'POST':
             return self.following(request, pk)
         return self.unfollow(request, pk)
-
-    @action(methods=['GET'], detail=False, url_path='subscriptions')
-    def subscriptions(self, request):
-        user = request.user
-        following = User.objects.filter(following__user=user)
-
-        recipes_limit = request.query_params.get('recipes_limit', 10)
-        return Response(FollowReadSerializer(
-            following,
-            context={
-                'request': request,
-                'recipes_limit': recipes_limit
-            },
-            many=True
-        ).data, status=status.HTTP_200_OK)
 
 
 class TagViewSet(viewsets.ModelViewSet):
@@ -153,40 +137,20 @@ class RecipeViewSet(viewsets.ModelViewSet):
     def add_shopping_list(self, request, pk):
         user = request.user
         recipe = get_object_or_404(Recipe, id=pk)
-        if user.shopping_recipe_list.filter(recipe=recipe).exists():
+        if user.shopping_list.filter(recipe=recipe).exists():
             return Response(
                 {'message': 'Нельзя добавлять рецепт в лист покупок дважды!'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        user.shopping_recipe_list.create(user=user, recipe=recipe)
-
-        ingredients = recipe.ingredients.all()
-        shoping_ingredient_list = user.shoping_ingredient_list.all()
-        # Я не понимаю как тут использовать agregate
-        for ingredient in ingredients:
-            if shoping_ingredient_list.filter(
-                ingredient=ingredient.ingredient
-            ).exists():
-
-                elem = shoping_ingredient_list.get(
-                    ingredient=ingredient.ingredient)
-
-                elem.amount += ingredient.amount
-                elem.save()
-            else:
-                ShoppingIngredientList.objects.create(
-                    user=user,
-                    ingredient=ingredient.ingredient,
-                    amount=ingredient.amount
-                )
+        user.shopping_list.create(user=user, recipe=recipe)
         return Response(RecipeSerializer(recipe).data)
 
     @transaction.atomic
     def delete_shopping_list(self, request, pk):
         user = request.user
         recipe = get_object_or_404(Recipe, id=pk)
-        shopping_recipe_list = user.shopping_recipe_list.filter(recipe=recipe)
+        shopping_recipe_list = user.shopping_list.filter(recipe=recipe)
         if not shopping_recipe_list.exists():
             return Response({
                 'message':
@@ -194,16 +158,6 @@ class RecipeViewSet(viewsets.ModelViewSet):
             },
                 status=status.HTTP_400_BAD_REQUEST
             )
-
-        ingredients = recipe.ingredients.all()
-        shoping_ingredient_list = user.shoping_ingredient_list.all()
-        for ingredient in ingredients:
-            elem = shoping_ingredient_list.get(
-                ingredient=ingredient.ingredient)
-            elem.amount -= ingredient.amount
-            elem.save()
-            if (elem.amount == 0):
-                elem.delete()
         shopping_recipe_list.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -216,7 +170,6 @@ class RecipeViewSet(viewsets.ModelViewSet):
     @action(methods=['GET'],
             permission_classes=(IsAuthenticated,), detail=False)
     def download_shopping_cart(self, request):
-        user = request.user
         response = HttpResponse(
             content_type="text/csv",
             headers={
@@ -225,15 +178,15 @@ class RecipeViewSet(viewsets.ModelViewSet):
             },
         )
         writer = csv.writer(response)
+        shop_cart = (
+            request.user.shopping_list.
+            values_list(
+                'recipe__ingredients__ingredient__name',
+                'recipe__ingredients__ingredient__measurement_unit'
+            ).annotate(amount=Sum('recipe__ingredients__amount'))
+        )
 
-        shoping_ingredient_list = user.shoping_ingredient_list.all()
-
-        for ingredient in shoping_ingredient_list:
-            writer.writerow([
-                ingredient.ingredient.name,
-                ingredient.amount,
-                ingredient.ingredient.measurement_unit,
-            ])
+        writer.writerows(shop_cart)
 
         return response
 
@@ -248,3 +201,23 @@ class RecipeViewSet(viewsets.ModelViewSet):
         serializer.save(
             author=self.request.user
         )
+
+
+@api_view(['GET',], )
+def subscriptions(request):
+    user = request.user
+    if not user.is_authenticated:
+        return Response({
+            "detail": "Учетные данные не были предоставлены."
+        }, status=status.HTTP_401_UNAUTHORIZED)
+
+    following = User.objects.filter(following__user=user)
+
+    recipes_limit = request.query_params.get('recipes_limit', 10)
+    return Response(FollowReadSerializer(
+        following,
+        context={
+            'request': request,
+            'recipes_limit': recipes_limit
+        }, many=True
+    ).data, status=status.HTTP_200_OK)
