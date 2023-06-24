@@ -203,7 +203,7 @@ class RecipeViewSet(viewsets.ModelViewSet):
         )
 
 
-@api_view(['GET',], )
+@api_view(['GET', ], )
 def subscriptions(request):
     user = request.user
     if not user.is_authenticated:

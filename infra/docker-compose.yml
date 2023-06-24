@@ -1,7 +1,9 @@
 version: '3.3'
 services:
   backend:
-    image: viktorejik/foodgram_backend:latest
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
     restart: always
     volumes:
       - backend_static:/app/static/
@@ -23,6 +25,8 @@ services:
       - ../docs/:/usr/share/nginx/html/api/docs/
       - backend_static:/usr/share/nginx/html/backend_static/:ro
       - media_value:/usr/share/nginx/html/media/:ro
+    depends_on:
+      - backend
   
 volumes:
   backend_static:
