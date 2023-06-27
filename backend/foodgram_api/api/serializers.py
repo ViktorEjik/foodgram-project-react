@@ -76,7 +76,7 @@ class IngredientAmountSerializer(serializers.ModelSerializer):
 class RecipeReadSerializer(serializers.ModelSerializer):
 
     tags = TagSerializer(many=True, read_only=True)
-    author = UserSerializer(read_only=True)
+    author = CustomUserSerializer(read_only=True)
     ingredients = IngredientAmountSerializer(many=True, read_only=True)
     is_in_favorited = serializers.SerializerMethodField()
     is_in_shopping_cart = serializers.SerializerMethodField()
