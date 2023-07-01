@@ -133,7 +133,7 @@ USE_TZ = True
 
 AUTH_USER_MODEL = 'recipes.User'
 
-CSRF_TRUSTED_ORIGINS = ['http://localhost']
+CSRF_TRUSTED_ORIGINS = ['http://51.250.4.81']
 
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'static/')
