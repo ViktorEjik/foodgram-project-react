@@ -4,7 +4,7 @@
 
 ```
 http:/51.250.4.81/
-admin@mail.ru
+admin@gmail.com
 login: admin
 password: admin
 ```
