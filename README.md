@@ -16,7 +16,7 @@ password: admin
 ## Запуск проекта локально
 Клонировать репозиторий и перейти в него:
 ```
-git clone https://github.com/KAChernenko/foodgram-project-react.git
+git clone https://github.com/ViktorEjik/foodgram-project-react.git
 ```
 
 Создать и активировать виртуальное окружение, обновить pip и установить зависимости:
