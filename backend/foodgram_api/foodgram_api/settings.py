@@ -30,8 +30,6 @@ SECRET_KEY = 'django-insecure-ue6yb+0ok1$o2-j-jru&q4l7!p4^t4x#0r=tx^jhw5bjm+ys%-
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['*']
-
 
 # Application definition
 
@@ -42,11 +40,11 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'django_filters',
     'rest_framework',
-    'corsheaders',
     'rest_framework.authtoken',
     'djoser',
+    'django_filters',
+    'colorfield',
     'recipes',
 ]
 
@@ -81,6 +79,12 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'foodgram_api.wsgi.application'
 
+
+CORS_URLS_REGEX = r'^/api/.*$'
+
+# Database
+# https://docs.djangoproject.com/en/4.2/ref/settings/#databases
+
 DATABASES = {
     'default': {
         'ENGINE': os.getenv('DB_ENGINE', 'django.db.backends.postgresql'),
@@ -91,11 +95,6 @@ DATABASES = {
         'PORT': os.getenv('DB_PORT')
     }
 }
-
-CORS_URLS_REGEX = r'^/api/.*$'
-
-# Database
-# https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
 
 # Password validation
@@ -134,6 +133,8 @@ USE_TZ = True
 
 AUTH_USER_MODEL = 'recipes.User'
 
+CSRF_TRUSTED_ORIGINS = ['http://localhost']
+
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'static/')
 
@@ -156,13 +157,15 @@ REST_FRAMEWORK = {
 }
 
 DJOSER = {
-    'LOGIN_FIELD': 'email',
-    'SERIALIZERS': {
-        'current_user': 'api.serializers.CustomUserSerializer',
-        'user': 'api.serializers.CustomUserSerializer',
-        'user_create': 'api.serializers.UserRegistrationSerializer',
+    "LOGIN_FIELD": 'email',
+    "SERIALIZERS": {
+        "user_create": "api.serializers.UserCreateSerializer",
+        "user": "api.serializers.UserSerializer",
+        "current_user": "api.serializers.UserSerializer",
     },
-    'PERMISSIONS': {
-        'user_list': ['rest_framework.permissions.AllowAny'],
-    }
+
+    "PERMISSIONS": {
+        "user": ["djoser.permissions.CurrentUserOrAdminOrReadOnly"],
+        "user_list": ["rest_framework.permissions.IsAuthenticatedOrReadOnly"],
+    },
 }

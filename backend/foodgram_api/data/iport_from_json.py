@@ -1,11 +1,11 @@
 import json
 import sqlite3
 
-connection = sqlite3.connect('../backend/foodgram_api/db.sqlite3')
+connection = sqlite3.connect('../db.sqlite3')
 cursor = connection.cursor()
 
 
-traffic = json.load(open('../data/ingredients.json'))
+traffic = json.load(open('./ingredients.json'))
 columns = ['name', 'measurement_unit']
 i = 1
 for row in traffic:

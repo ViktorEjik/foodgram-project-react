@@ -1,6 +1,8 @@
+from colorfield.fields import ColorField
 from django.contrib.auth.models import AbstractUser
-from django.core.validators import MinValueValidator
+from django.core.validators import MinValueValidator, RegexValidator
 from django.db import models
+from django.db.models import UniqueConstraint
 
 
 class User(AbstractUser):
@@ -34,7 +36,6 @@ class User(AbstractUser):
     )
 
     role = models.CharField(
-        'роль',
         max_length=20,
         choices=ROLE_CHOICES,
         default=USER,
@@ -65,13 +66,11 @@ class User(AbstractUser):
 class Follow(models.Model):
     user = models.ForeignKey(
         User,
-        verbose_name='Пользователь',
         on_delete=models.CASCADE,
         related_name='follower',
     )
     author = models.ForeignKey(
         User,
-        verbose_name='Автор',
         on_delete=models.CASCADE,
         related_name='following',
     )
@@ -85,140 +84,139 @@ class Follow(models.Model):
         ]
 
 
-class Tag(models.Model):
-    name = models.CharField(
-        max_length=150,
-        unique=True
-    )
-
-    slug = models.SlugField(
-        unique=True,
-    )
-
-    colore = models.CharField(
-        max_length=7,
-    )
-
-    def __str__(self):
-        return f'{self.name} - {self.slug}'
-
-
 class Ingredient(models.Model):
     name = models.CharField(
-        max_length=100,
+        max_length=200,
+        db_index=True,
     )
-
     measurement_unit = models.CharField(
-        max_length=100,
+        max_length=200
     )
 
-    def __str__(self):
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=('name', 'measurement_unit'),
+                name='unique_name_measurement_unit'
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f'{self.name}, {self.measurement_unit}'
+
+
+class Tag(models.Model):
+    name = models.CharField(
+        max_length=60,
+        db_index=True,
+        unique=True
+    )
+    color = ColorField(
+        format='hex',
+        max_length=7,
+        unique=True,
+        validators=[
+            RegexValidator(
+                regex="^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$",
+                message='Проверьте вводимый формат',
+            )]
+    )
+    slug = models.SlugField(unique=True)
+
+    class Meta:
+        ordering = ('name', )
+
+    def __str__(self) -> str:
         return self.name
-
-
-class IngredientAmount(models.Model):
-    ingredient = models.ForeignKey(
-        Ingredient,
-        on_delete=models.CASCADE,
-        related_name='ingredients'
-    )
-    amount = models.IntegerField(
-        validators=(MinValueValidator(
-            1, 'В рецепте должна быть хотябы одна еденица продукта!'),)
-    )
-
-    def __str__(self):
-        return f'{self.ingredient} - {self.amount}'
 
 
 class Recipe(models.Model):
-
     author = models.ForeignKey(
         User,
-        related_name='recipes',
-        on_delete=models.CASCADE
+        on_delete=models.CASCADE,
     )
-
     name = models.CharField(
         max_length=200,
     )
-
-    text = models.TextField()
-
-    cooking_time = models.IntegerField(
-        validators=(MinValueValidator(
-            1, 'Минимальное время готовки 1 минута!'),)
-    )
-
     image = models.ImageField(
-        upload_to='images',
+        upload_to='recipes/image/',
     )
-
+    text = models.TextField()
     ingredients = models.ManyToManyField(
-        IngredientAmount,
-        through='RecipeIngredient',
-        blank=False,
-        related_name='recipe_ingredient',
+        Ingredient,
+        through='IngredientRecipe'
     )
-
     tags = models.ManyToManyField(
         Tag,
-        through='RecipeTag',
-        blank=False
+        related_name='recipes',
     )
+    pub_date = models.DateTimeField(
+        auto_now_add=True,
+    )
+    cooking_time = models.BigIntegerField()
 
-    def __str__(self):
+    class Meta:
+        ordering = ('-pub_date', )
+
+    def __str__(self) -> str:
         return self.name
 
 
-class RecipeTag(models.Model):
-    tag = models.ForeignKey(
-        Tag,
+class FavoriteShoppingCart(models.Model):
+    user = models.ForeignKey(
+        User,
         on_delete=models.CASCADE,
-        related_name='recipe_tag'
     )
-
     recipe = models.ForeignKey(
         Recipe,
         on_delete=models.CASCADE,
-        related_name='recipe_tag'
     )
 
+    class Meta:
+        abstract = True
+        constraints = [
+            UniqueConstraint(
+                fields=('user', 'recipe'),
+                name='%(app_label)s_%(class)s_unique'
+            )
+        ]
 
-class RecipeIngredient(models.Model):
-    recipe = models.ForeignKey(
-        Recipe,
-        on_delete=models.CASCADE
-    )
+    def __str__(self):
+        return f'{self.user} :: {self.recipe}'
+
+
+class Favorite(FavoriteShoppingCart):
+
+    class Meta(FavoriteShoppingCart.Meta):
+        default_related_name = 'favorites'
+
+
+class ShoppingCart(FavoriteShoppingCart):
+
+    class Meta(FavoriteShoppingCart.Meta):
+        default_related_name = 'shopping_list'
+
+
+class IngredientRecipe(models.Model):
     ingredient = models.ForeignKey(
-        IngredientAmount,
-        on_delete=models.CASCADE
-    )
-
-
-class FavoriteList(models.Model):
-    user = models.ForeignKey(
-        User,
+        Ingredient,
         on_delete=models.CASCADE,
-        related_name='favorite'
     )
-
     recipe = models.ForeignKey(
         Recipe,
         on_delete=models.CASCADE,
-        related_name='favoritelist'
+        related_name='ingredienttorecipe'
+    )
+    amount = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(
+            1, 'Минимальное количество ингредиента 1!')],
     )
 
+    class Meta:
+        ordering = ('-id', )
 
-class ShoppingList(models.Model):
-    user = models.ForeignKey(
-        User,
-        on_delete=models.CASCADE,
-        related_name='shopping_list'
-    )
-
-    recipe = models.ForeignKey(
-        Recipe,
-        on_delete=models.CASCADE,
-        related_name='shopping_list'
-    )
+    def __str__(self):
+        return (
+            f'{self.ingredient.name} :: {self.ingredient.measurement_unit}'
+            f' - {self.amount} '
+        )

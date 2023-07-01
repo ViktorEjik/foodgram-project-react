@@ -12,7 +12,8 @@ services:
   
 
   backend:
-    image: viktorejik/foodgram_backend:latest
+    image: viktorejik/foodgram_backend
+    restart: always
     volumes:
       - backend_static:/app/static/
       - media_value:/app/media
@@ -22,9 +23,12 @@ services:
       - ./.env
 
   frontend:
-    image: viktorejik/foodgram_frontend:latest
+    image: viktorejik/foodgram_frontend
     volumes:
       - ../frontend/:/app/result_build/
+    depends_on:
+      - backend
+
   nginx:
     image: nginx:1.19.3
     ports:
@@ -36,7 +40,7 @@ services:
       - backend_static:/usr/share/nginx/html/backend_static/:ro
       - media_value:/usr/share/nginx/html/media/:ro
     depends_on:
-      - backend
+      - frontend
   
 volumes:
   backend_static:
